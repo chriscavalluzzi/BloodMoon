@@ -26,7 +26,8 @@ public class BloodMoon : ModuleRules
             "Slate", "SlateCore",
             "Json",
 	        "AbstractInstance",
-            "Niagara"
+            "Niagara",
+            "LevelSequence",
         });
 
 

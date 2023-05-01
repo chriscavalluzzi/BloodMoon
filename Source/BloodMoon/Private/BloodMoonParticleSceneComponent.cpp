@@ -3,8 +3,6 @@
 #include "Subsystem/SubsystemActorManager.h"
 
 UBloodMoonParticleSceneComponent::UBloodMoonParticleSceneComponent() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Creating ParticleSceneComponent"))
-
 	PrimaryComponentTick.bCanEverTick = true;
 
 	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> groundParticleSystemFinder(TEXT("NiagaraSystem'/BloodMoon/Particles/BloodMoon_GroundParticleSystem_Niagara.BloodMoon_GroundParticleSystem_Niagara'"));

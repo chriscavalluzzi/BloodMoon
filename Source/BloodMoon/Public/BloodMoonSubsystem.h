@@ -4,6 +4,8 @@
 #include "Subsystem/ModSubsystem.h"
 #include "FGSkySphere.h"
 #include "FGTimeSubsystem.h"
+#include "LevelSequencePlayer.h"
+#include "LevelSequenceActor.h"
 #include "BloodMoonParticleSceneComponent.h"
 #include "BloodMoonSubsystem.generated.h"
 
@@ -25,6 +27,9 @@ private:
 
 	UBloodMoonParticleSceneComponent* particleActorComponent;
 
+	ULevelSequence* midnightSequence;
+	ULevelSequencePlayer* midnightSequencePlayer;
+
 	bool isBloodMoonNight = false;
 	bool isBloodMoonDone = false;
 	int DaysBetweenBloodMoonNight = 7;
@@ -39,6 +44,10 @@ private:
 	void TriggerBloodMoonMidnight();
 	void TriggerBloodMoonPostMidnight();
 	void ResetToStandardMoon();
+
+	void BuildMidnightSequence();
+	void SuspendWorldCompositionUpdates();
+	void ResumeWorldCompositionUpdates();
 
 	void ResetCreatureSpawners();
 
