@@ -6,6 +6,7 @@
 #include "FGTimeSubsystem.h"
 #include "LevelSequencePlayer.h"
 #include "LevelSequenceActor.h"
+#include "BloodMoon_ConfigStruct.h"
 #include "BloodMoonParticleSceneComponent.h"
 #include "BloodMoonSubsystem.generated.h"
 
@@ -25,40 +26,58 @@ public:
 
 private:
 
-	UBloodMoonParticleSceneComponent* particleActorComponent;
+	bool config_enableMod;
+	int32 config_daysBetweenBloodMoon;
+	bool config_enableCutscene;
+	bool config_enableParticleEffects;
+	bool config_enableRevive;
+	bool config_enableReviveNearBases;
+
+	AFGSkySphere* skySphere;
+	ADirectionalLight* moonLight;
 
 	ULevelSequence* midnightSequence;
 	ULevelSequencePlayer* midnightSequencePlayer;
 
 	bool isBloodMoonNight = false;
 	bool isBloodMoonDone = false;
-	int DaysBetweenBloodMoonNight = 7;
 
-	void RegisterHooks();
+	// Setup
+
+	void RegisterImmediateHooks();
+	void RegisterDelayedHooks();
 	void RegisterDelegates();
+	void UpdateConfig();
+	void CreateGroundParticleComponent();
+
+	// Status Changes
 
 	void UpdateBloodMoonNightStatus();
-
 	void TriggerBloodMoonEarlyNight();
 	void TriggerBloodMoonPreMidnight();
 	void TriggerBloodMoonMidnight();
 	void TriggerBloodMoonPostMidnight();
 	void ResetToStandardMoon();
 
+	// Particle Effects
+
+	UBloodMoonParticleSceneComponent* groundParticleActorComponent;
+	void StartGroundParticleSystem();
+	void EndGroundParticleSystem();
+
+	// Midnight
+
 	void BuildMidnightSequence();
 	void SuspendWorldCompositionUpdates();
 	void ResumeWorldCompositionUpdates();
-
 	void ResetCreatureSpawners();
+
+	// Time Subystem
 
 	AFGTimeOfDaySubsystem* GetTimeSubsystem();
 	void PauseTimeSubsystem();
 	void UnpauseTimeSubsystem();
 	int32 GetDayNumber();
 	float GetNightPercent();
-
-	int color_test = 0;
-	AFGSkySphere* skySphere;
-	ADirectionalLight* moonLight;
 
 };

@@ -12,11 +12,12 @@
 #include "Engine/WorldComposition.h"
 
 ABloodMoonSubsystem::ABloodMoonSubsystem() {
-	RegisterHooks();
 	//PrimaryActorTick.bCanEverTick = true;
 
 	static ConstructorHelpers::FObjectFinder<ULevelSequence> midnightSequenceFinder(TEXT("LevelSequence'/BloodMoon/BloodMoonMidnightSequence.BloodMoonMidnightSequence'"));
 	midnightSequence = midnightSequenceFinder.Object;
+
+	RegisterImmediateHooks();
 }
 
 void ABloodMoonSubsystem::BeginPlay() {
@@ -24,33 +25,38 @@ void ABloodMoonSubsystem::BeginPlay() {
 
 	Super::BeginPlay();
 
+	CreateGroundParticleComponent();
+	UpdateConfig();
+	RegisterDelayedHooks();
 	RegisterDelegates();
-	UpdateBloodMoonNightStatus();
 	GetTimeSubsystem()->mNumberOfPassedDays = 48; // DEV
+	UpdateBloodMoonNightStatus();
 }
 
-void ABloodMoonSubsystem::RegisterHooks() {
+void ABloodMoonSubsystem::RegisterImmediateHooks() {
 #if !WITH_EDITOR
-	AFGGameMode* exampleGameMode = GetMutableDefault<AFGGameMode>();
-	SUBSCRIBE_METHOD_VIRTUAL(AFGGameMode::PostLogin, exampleGameMode, [this](auto& scope, AFGGameMode* gm, APlayerController* pc) {
-		if (gm->HasAuthority() && !gm->IsMainMenuGameMode()) {
-			// This machine is the host
-		}
+	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
+	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::BeginPlay, exampleSkySphere, [this](auto& scope, AFGSkySphere* self) {
+		UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Registering SkySphere..."))
+		skySphere = self;
+		moonLight = self->mMoonLight;
+		//UE_LOG(LogTemp, Warning, TEXT(">>>>> MOON ROTATION AXIS: %s"), *self->mMoonRotationAxis.ToCompactString())
+		//UE_LOG(LogTemp, Warning, TEXT(">>>>> MOON ROTATION ORIGIN: %s"), *self->mMoonOriginRotation.ToCompactString())
 	});
+#endif
+}
+
+void ABloodMoonSubsystem::RegisterDelayedHooks() {
+#if !WITH_EDITOR
+	SUBSCRIBE_METHOD_AFTER(UConfigManager::MarkConfigurationDirty, [this](UConfigManager* self, const FConfigId& ConfigId) {
+		if (ConfigId == FConfigId{ "BloodMoon", "" }) {
+			// The user config has been updated, reload it
+			UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Config marked dirty, reloading...."))
+			this->UpdateConfig();
+		}
+	})
 
 	AFGCharacterPlayer* examplePlayerCharacter = GetMutableDefault<AFGCharacterPlayer>();
-	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::BeginPlay, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self) {
-		if (self->IsLocallyControlled()) {
-			// TODO: This is creating too many components, switch to a function that will definitely only apply to the main player object
-			UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Creating ParticleSceneComponent..."))
-			UActorComponent* newComponent = self->AddComponentByClass(UBloodMoonParticleSceneComponent::StaticClass(), false, FTransform(), false);
-			particleActorComponent = Cast< UBloodMoonParticleSceneComponent>(newComponent);
-		}
-	});
-	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::SetupPlayerInputComponent, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, UInputComponent* PlayerInputComponent) {
-		// TODO: Try switching AFGCharacterPlayer::BeginPlay hook to this
-		UE_LOG(LogTemp, Warning, TEXT(">>>>> PLAYER INPUT COMPONENT CREATION"))
-	});
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::CrouchPressed, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self) {
 		// DEV test action
 		//ResetCreatureSpawners();
@@ -63,17 +69,6 @@ void ABloodMoonSubsystem::RegisterHooks() {
 	});
 
 	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
-	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::BeginPlay, exampleSkySphere, [this](auto& scope, AFGSkySphere* self) {
-		UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Registering SkySphere..."))
-		if (self->mMoonLight != moonLight) {
-			UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] New MoonLight detected"))
-		}
-		skySphere = self;
-		moonLight = self->mMoonLight;
-
-		UE_LOG(LogTemp, Warning, TEXT(">>>>> MOON ROTATION AXIS: %s"), *self->mMoonRotationAxis.ToCompactString())
-		UE_LOG(LogTemp, Warning, TEXT(">>>>> MOON ROTATION ORIGIN: %s"), *self->mMoonOriginRotation.ToCompactString())
-	});
 	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::Tick, exampleSkySphere, [this](auto& scope, AFGSkySphere* self, float deltaTime) {
 		if (IsValid(GetTimeSubsystem())) {
 			//UE_LOG(LogTemp, Warning, TEXT(">>> DAY %d - %f"), this->GetDayNumber(), this->GetNightPercent());
@@ -86,6 +81,33 @@ void ABloodMoonSubsystem::RegisterHooks() {
 		}
 	});
 #endif
+}
+
+void ABloodMoonSubsystem::UpdateConfig() {
+	if (IsValid(this)) {
+		FBloodMoon_ConfigStruct config = FBloodMoon_ConfigStruct::GetActiveConfig();
+
+		config_enableMod = config.enableMod;
+		config_daysBetweenBloodMoon = config.daysBetweenBloodMoon;
+		config_enableCutscene = config.enableCutscene;
+		config_enableParticleEffects = config.enableParticleEffects;
+		config_enableRevive = config.enableRevive;
+		config_enableReviveNearBases = config.enableReviveNearBases;
+
+		UpdateBloodMoonNightStatus();
+
+		if (config_enableMod && config_enableParticleEffects && isBloodMoonNight) {
+			StartGroundParticleSystem();
+		} else {
+			EndGroundParticleSystem();
+		}
+	}
+}
+
+void ABloodMoonSubsystem::CreateGroundParticleComponent() {
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Creating ParticleSceneComponent..."))
+	UActorComponent* newComponent = UGameplayStatics::GetPlayerCharacter(this, 0)->AddComponentByClass(UBloodMoonParticleSceneComponent::StaticClass(), false, FTransform(), false);
+	groundParticleActorComponent = Cast< UBloodMoonParticleSceneComponent>(newComponent);
 }
 
 void ABloodMoonSubsystem::RegisterDelegates() {
@@ -108,7 +130,6 @@ void ABloodMoonSubsystem::OnNewDay() {
 
 void ABloodMoonSubsystem::OnDayStateChanged() {
 	// Default night begins at 16:30
-	UE_LOG(LogTemp, Warning, TEXT(">>> DAY STATE CHANGE: %s"), GetTimeSubsystem()->IsDay() ? TEXT("day") : TEXT("night"))
 	UpdateBloodMoonNightStatus();
 }
 
@@ -117,17 +138,19 @@ void ABloodMoonSubsystem::Tick(float deltaSeconds) {
 }
 
 void ABloodMoonSubsystem::ResetCreatureSpawners() {
-	TArray<AActor*> creatureSpawners;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AFGCreatureSpawner::StaticClass(), creatureSpawners);
-	for (int i = 0; i < creatureSpawners.Num(); i++) {
-		AFGCreatureSpawner* spawner = Cast<AFGCreatureSpawner>(creatureSpawners[i]);
-		if (spawner && !spawner->IsSpawnerActive()) {
-			for (int j = 0; j < spawner->mSpawnData.Num(); j++) {
-				FSpawnData* spawnData = &spawner->mSpawnData[j];
-				if (spawnData->WasKilled && !IsValid(spawnData->Creature)) {
-					spawnData->WasKilled = false;
-					spawner->PopulateSpawnData();
-					UE_LOG(LogTemp, Warning, TEXT(">>> RESPAWNING - Spawner %d, Creature %d/%d"), i, j, spawner->GetNumUnspawnedCreatures())
+	if (config_enableRevive) {
+		TArray<AActor*> creatureSpawners;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AFGCreatureSpawner::StaticClass(), creatureSpawners);
+		for (int i = 0; i < creatureSpawners.Num(); i++) {
+			AFGCreatureSpawner* spawner = Cast<AFGCreatureSpawner>(creatureSpawners[i]);
+			if (spawner && !spawner->IsSpawnerActive()) {
+				for (int j = 0; j < spawner->mSpawnData.Num(); j++) {
+					FSpawnData* spawnData = &spawner->mSpawnData[j];
+					if (spawnData->WasKilled && !IsValid(spawnData->Creature)) {
+						spawnData->WasKilled = false;
+						spawner->PopulateSpawnData();
+						UE_LOG(LogTemp, Warning, TEXT(">>> [BloodMoon] Reviving: Spawner %d, Creature %d/%d"), i, j+1, spawner->GetNumUnspawnedCreatures())
+					}
 				}
 			}
 		}
@@ -135,14 +158,16 @@ void ABloodMoonSubsystem::ResetCreatureSpawners() {
 }
 
 void ABloodMoonSubsystem::UpdateBloodMoonNightStatus() {
-	AFGTimeOfDaySubsystem* timeSubsystem = GetTimeSubsystem();
-	if (!isBloodMoonNight) {
-		if (GetDayNumber() % 7 == 6 && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() > 0.5f) {
+	if (config_enableMod) {
+		AFGTimeOfDaySubsystem* timeSubsystem = GetTimeSubsystem();
+		if (GetDayNumber() % config_daysBetweenBloodMoon == (config_daysBetweenBloodMoon - 1) && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() >= 0.5f) {
 			TriggerBloodMoonEarlyNight();
-		} else if (GetDayNumber() % 7 == 0 && GetDayNumber() > 0 && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() < 0.5f) {
+		} else if (GetDayNumber() % config_daysBetweenBloodMoon == 0 && GetDayNumber() > 0 && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() < 0.5f) {
 			TriggerBloodMoonPostMidnight();
+		} else {
+			ResetToStandardMoon();
 		}
-	} else if (isBloodMoonNight && timeSubsystem->IsDay()) {
+	} else {
 		ResetToStandardMoon();
 	}
 }
@@ -151,7 +176,7 @@ void ABloodMoonSubsystem::TriggerBloodMoonEarlyNight() {
 	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting blood moon night"))
 	isBloodMoonNight = true;
 	isBloodMoonDone = false;
-	particleActorComponent->Start();
+	StartGroundParticleSystem();
 	UnpauseTimeSubsystem();
 }
 
@@ -159,14 +184,14 @@ void ABloodMoonSubsystem::TriggerBloodMoonPreMidnight() {
 	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting blood moon pre-midnight sequence"))
 	isBloodMoonNight = true;
 	isBloodMoonDone = false;
-	particleActorComponent->Start();
+	StartGroundParticleSystem();
 	UnpauseTimeSubsystem();
 }
 
 void ABloodMoonSubsystem::TriggerBloodMoonMidnight() {
 	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting blood moon midnight sequence"))
 	ResetCreatureSpawners();
-	particleActorComponent->Start();
+	StartGroundParticleSystem();
 	//PauseTimeSubsystem();
 	// TODO: Check that suspension of world composition updates here won't impact ability to manually load levels/tiles in sequence
 	SuspendWorldCompositionUpdates();
@@ -178,19 +203,32 @@ void ABloodMoonSubsystem::TriggerBloodMoonPostMidnight() {
 	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting blood moon post-midnight sequence"))
 	isBloodMoonNight = true;
 	isBloodMoonDone = true;
-	particleActorComponent->Start();
+	StartGroundParticleSystem();
 	UnpauseTimeSubsystem();
 }
 
 void ABloodMoonSubsystem::ResetToStandardMoon() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Returning to standard moon"))
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting standard day state"))
 	isBloodMoonNight = false;
 	isBloodMoonDone = false;
-	particleActorComponent->End();
+	EndGroundParticleSystem();
 	UnpauseTimeSubsystem();
 }
 
+void ABloodMoonSubsystem::StartGroundParticleSystem() {
+	if (groundParticleActorComponent && config_enableParticleEffects) {
+		groundParticleActorComponent->Start();
+	}
+}
+
+void ABloodMoonSubsystem::EndGroundParticleSystem() {
+	if (groundParticleActorComponent) {
+		groundParticleActorComponent->End();
+	}
+}
+
 void ABloodMoonSubsystem::BuildMidnightSequence() {
+	if (!config_enableCutscene) { return; }
 	FMovieSceneSequencePlaybackSettings sequenceSettings;
 	sequenceSettings.bAutoPlay = true;
 	sequenceSettings.bRestoreState = true;
