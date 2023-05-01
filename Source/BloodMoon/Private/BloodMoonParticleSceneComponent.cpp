@@ -9,6 +9,10 @@ UBloodMoonParticleSceneComponent::UBloodMoonParticleSceneComponent() {
 	groundParticleSystem = groundParticleSystemFinder.Object;
 }
 
+UBloodMoonParticleSceneComponent::~UBloodMoonParticleSceneComponent() {
+	End();
+}
+
 void UBloodMoonParticleSceneComponent::BeginPlay() {
 	Super::BeginPlay();	
 }

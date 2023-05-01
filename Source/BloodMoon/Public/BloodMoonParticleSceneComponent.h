@@ -15,6 +15,7 @@ class BLOODMOON_API UBloodMoonParticleSceneComponent : public USceneComponent {
 
 public:	
 	UBloodMoonParticleSceneComponent();
+	~UBloodMoonParticleSceneComponent();
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 

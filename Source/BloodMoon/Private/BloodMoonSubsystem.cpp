@@ -57,6 +57,10 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 	})
 
 	AFGCharacterPlayer* examplePlayerCharacter = GetMutableDefault<AFGCharacterPlayer>();
+	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::SetupPlayerInputComponent, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, UInputComponent* PlayerInputComponent) {
+		CreateGroundParticleComponent();
+		UpdateBloodMoonNightStatus();
+	});
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::CrouchPressed, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self) {
 		// DEV test action
 		//ResetCreatureSpawners();
@@ -105,9 +109,11 @@ void ABloodMoonSubsystem::UpdateConfig() {
 }
 
 void ABloodMoonSubsystem::CreateGroundParticleComponent() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Creating ParticleSceneComponent..."))
-	UActorComponent* newComponent = UGameplayStatics::GetPlayerCharacter(this, 0)->AddComponentByClass(UBloodMoonParticleSceneComponent::StaticClass(), false, FTransform(), false);
-	groundParticleActorComponent = Cast< UBloodMoonParticleSceneComponent>(newComponent);
+	if (GetCharacter() && !GetGroundParticleComponent()) {
+		UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Creating ParticleSceneComponent..."))
+		UActorComponent* newComponent = GetCharacter()->AddComponentByClass(UBloodMoonParticleSceneComponent::StaticClass(), false, FTransform(), false);
+		Cast<UBloodMoonParticleSceneComponent>(newComponent);
+	}
 }
 
 void ABloodMoonSubsystem::RegisterDelegates() {
@@ -215,15 +221,28 @@ void ABloodMoonSubsystem::ResetToStandardMoon() {
 	UnpauseTimeSubsystem();
 }
 
+ACharacter* ABloodMoonSubsystem::GetCharacter() {
+	return UGameplayStatics::GetPlayerCharacter(this, 0);
+}
+
+UBloodMoonParticleSceneComponent* ABloodMoonSubsystem::GetGroundParticleComponent() {
+	if (ACharacter* character = GetCharacter()) {
+		return GetCharacter()->FindComponentByClass<UBloodMoonParticleSceneComponent>();
+	}
+	return nullptr;
+}
+
 void ABloodMoonSubsystem::StartGroundParticleSystem() {
-	if (groundParticleActorComponent && config_enableParticleEffects) {
-		groundParticleActorComponent->Start();
+	UBloodMoonParticleSceneComponent* particles = GetGroundParticleComponent();
+	if (particles && config_enableParticleEffects) {
+		particles->Start();
 	}
 }
 
 void ABloodMoonSubsystem::EndGroundParticleSystem() {
-	if (groundParticleActorComponent) {
-		groundParticleActorComponent->End();
+	UBloodMoonParticleSceneComponent* particles = GetGroundParticleComponent();
+	if (particles) {
+		particles->End();
 	}
 }
 
@@ -243,18 +262,14 @@ void ABloodMoonSubsystem::BuildMidnightSequence() {
 }
 
 void ABloodMoonSubsystem::SuspendWorldCompositionUpdates() {
-	if (UWorld* world = GetWorld()) {
-		// TODO: Confirm that this value is time since last update, not a division of time since game start
-		//	(In other words, test that changing this value to x will ensure the next update will be somewhere between x and x-5 seconds)
-		//	If it's time since last update, we can set this to a smaller value, to reduce issues if the value doesn't get reset for some reason
-		world->WorldComposition->TilesStreamingTimeThreshold = 9999999.0;
-	}
+	// TODO: Confirm that this value is time since last update, not a division of time since game start
+	//	(In other words, test that changing this value to x will ensure the next update will be somewhere between x and x-5 seconds)
+	//	If it's time since last update, we can set this to a smaller value, to reduce issues if the value doesn't get reset for some reason
+	GetWorld()->WorldComposition->TilesStreamingTimeThreshold = 9999999.0;
 }
 
 void ABloodMoonSubsystem::ResumeWorldCompositionUpdates() {
-	if (UWorld* world = GetWorld()) {
-		world->WorldComposition->TilesStreamingTimeThreshold = 5.0;
-	}
+	GetWorld()->WorldComposition->TilesStreamingTimeThreshold = 5.0;
 }
 
 AFGTimeOfDaySubsystem* ABloodMoonSubsystem::GetTimeSubsystem() {

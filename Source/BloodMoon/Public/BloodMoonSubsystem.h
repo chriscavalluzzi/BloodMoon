@@ -61,7 +61,8 @@ private:
 
 	// Particle Effects
 
-	UBloodMoonParticleSceneComponent* groundParticleActorComponent;
+	ACharacter* GetCharacter();
+	UBloodMoonParticleSceneComponent* GetGroundParticleComponent();
 	void StartGroundParticleSystem();
 	void EndGroundParticleSystem();
 
