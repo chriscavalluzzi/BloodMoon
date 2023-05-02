@@ -30,6 +30,7 @@ private:
 	UNiagaraComponent* groundParticleSystemInstance;
 
 	void CreateGroundParticleSystem();
+	void UpdateGroundParticleSystem();
 	void DestroyGroundParticleSystem();
 	AFGTimeOfDaySubsystem* GetTimeSubsystem();
 };
