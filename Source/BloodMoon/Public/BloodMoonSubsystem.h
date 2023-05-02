@@ -23,6 +23,8 @@ public:
 	void OnNewDay();
 	UFUNCTION()
 	void OnDayStateChanged();
+	UFUNCTION(BlueprintCallable)
+	void OnMidnightSequenceEnd();
 
 private:
 
@@ -41,6 +43,8 @@ private:
 
 	bool isBloodMoonNight = false;
 	bool isBloodMoonDone = false;
+
+	double vanillaTilesStreamingTimeThreshold = 5.0;
 
 	// Setup
 

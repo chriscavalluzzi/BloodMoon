@@ -127,8 +127,7 @@ void ABloodMoonSubsystem::RegisterDelegates() {
 }
 
 void ABloodMoonSubsystem::OnNewDay() {
-	UE_LOG(LogTemp, Warning, TEXT(">>> NEW DAY: %d"), GetDayNumber())
-	UpdateBloodMoonNightStatus();
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] New day: %d"), GetDayNumber())
 	if (isBloodMoonNight) {
 		TriggerBloodMoonMidnight();
 	}
@@ -163,6 +162,11 @@ void ABloodMoonSubsystem::ResetCreatureSpawners() {
 	}
 }
 
+void ABloodMoonSubsystem::OnMidnightSequenceEnd() {
+	ResumeWorldCompositionUpdates();
+	TriggerBloodMoonPostMidnight();
+}
+
 void ABloodMoonSubsystem::UpdateBloodMoonNightStatus() {
 	if (config_enableMod) {
 		AFGTimeOfDaySubsystem* timeSubsystem = GetTimeSubsystem();
@@ -179,7 +183,7 @@ void ABloodMoonSubsystem::UpdateBloodMoonNightStatus() {
 }
 
 void ABloodMoonSubsystem::TriggerBloodMoonEarlyNight() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting blood moon night"))
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] State: Blood moon night"))
 	isBloodMoonNight = true;
 	isBloodMoonDone = false;
 	StartGroundParticleSystem();
@@ -187,7 +191,7 @@ void ABloodMoonSubsystem::TriggerBloodMoonEarlyNight() {
 }
 
 void ABloodMoonSubsystem::TriggerBloodMoonPreMidnight() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting blood moon pre-midnight sequence"))
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] State: Blood moon pre-midnight"))
 	isBloodMoonNight = true;
 	isBloodMoonDone = false;
 	StartGroundParticleSystem();
@@ -201,12 +205,11 @@ void ABloodMoonSubsystem::TriggerBloodMoonMidnight() {
 	//PauseTimeSubsystem();
 	// TODO: Check that suspension of world composition updates here won't impact ability to manually load levels/tiles in sequence
 	SuspendWorldCompositionUpdates();
-	// TODO: Resume world composition updates after sequence has ended
 	BuildMidnightSequence();
 }
 
 void ABloodMoonSubsystem::TriggerBloodMoonPostMidnight() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting blood moon post-midnight sequence"))
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] State: Blood moon post-midnight"))
 	isBloodMoonNight = true;
 	isBloodMoonDone = true;
 	StartGroundParticleSystem();
@@ -214,7 +217,7 @@ void ABloodMoonSubsystem::TriggerBloodMoonPostMidnight() {
 }
 
 void ABloodMoonSubsystem::ResetToStandardMoon() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting standard day state"))
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] State: Normal"))
 	isBloodMoonNight = false;
 	isBloodMoonDone = false;
 	EndGroundParticleSystem();
@@ -248,6 +251,7 @@ void ABloodMoonSubsystem::EndGroundParticleSystem() {
 
 void ABloodMoonSubsystem::BuildMidnightSequence() {
 	if (!config_enableCutscene) { return; }
+
 	FMovieSceneSequencePlaybackSettings sequenceSettings;
 	sequenceSettings.bAutoPlay = true;
 	sequenceSettings.bRestoreState = true;
@@ -257,19 +261,20 @@ void ABloodMoonSubsystem::BuildMidnightSequence() {
 	FMovieSceneSequenceLoopCount loopCount;
 	loopCount.Value = 0;
 	sequenceSettings.LoopCount = loopCount;
+
 	ALevelSequenceActor* midnightSequenceActorPtr = NewObject<ALevelSequenceActor>(this);
 	midnightSequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(this, midnightSequence, sequenceSettings, midnightSequenceActorPtr);
 }
 
 void ABloodMoonSubsystem::SuspendWorldCompositionUpdates() {
-	// TODO: Confirm that this value is time since last update, not a division of time since game start
-	//	(In other words, test that changing this value to x will ensure the next update will be somewhere between x and x-5 seconds)
-	//	If it's time since last update, we can set this to a smaller value, to reduce issues if the value doesn't get reset for some reason
-	GetWorld()->WorldComposition->TilesStreamingTimeThreshold = 9999999.0;
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Suspending world composition updates"))
+	vanillaTilesStreamingTimeThreshold = GetWorld()->WorldComposition->TilesStreamingTimeThreshold;
+	GetWorld()->WorldComposition->TilesStreamingTimeThreshold = DBL_MAX;
 }
 
 void ABloodMoonSubsystem::ResumeWorldCompositionUpdates() {
-	GetWorld()->WorldComposition->TilesStreamingTimeThreshold = 5.0;
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Resuming world composition updates"))
+	GetWorld()->WorldComposition->TilesStreamingTimeThreshold = vanillaTilesStreamingTimeThreshold;
 }
 
 AFGTimeOfDaySubsystem* ABloodMoonSubsystem::GetTimeSubsystem() {
