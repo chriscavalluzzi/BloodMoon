@@ -153,14 +153,16 @@ void ABloodMoonSubsystem::ResetCreatureSpawners() {
 		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AFGCreatureSpawner::StaticClass(), creatureSpawners);
 		for (int i = 0; i < creatureSpawners.Num(); i++) {
 			AFGCreatureSpawner* spawner = Cast<AFGCreatureSpawner>(creatureSpawners[i]);
-			if (spawner && !spawner->IsSpawnerActive()) {
+			if (spawner && (config_enableReviveNearBases || !spawner->IsNearBase())) {
 				for (int j = 0; j < spawner->mSpawnData.Num(); j++) {
 					FSpawnData* spawnData = &spawner->mSpawnData[j];
-					if (spawnData->WasKilled && !IsValid(spawnData->Creature)) {
+					if (spawnData->NumTimesKilled >= 1 && !IsValid(spawnData->Creature)) {
 						spawnData->WasKilled = false;
-						spawner->PopulateSpawnData();
-						UE_LOG(LogTemp, Warning, TEXT(">>> [BloodMoon] Reviving: Spawner %d, Creature %d/%d"), i, j+1, spawner->GetNumUnspawnedCreatures())
+						spawnData->NumTimesKilled = 0;
+						spawnData->KilledOnDayNr = -1;
+						UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Reviving: Spawner %d, Creature %d/%d"), i, j+1, spawner->mSpawnData.Num())
 					}
+					spawner->PopulateSpawnData();
 				}
 			}
 		}

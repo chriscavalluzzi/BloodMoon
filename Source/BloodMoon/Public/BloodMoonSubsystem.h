@@ -28,7 +28,6 @@ public:
 	void OnMidnightSequenceEnd();
 
 private:
-
 	bool config_enableMod;
 	int32 config_daysBetweenBloodMoon;
 	bool config_enableCutscene;

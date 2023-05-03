@@ -10,12 +10,12 @@ UBloodMoonParticleSceneComponent::UBloodMoonParticleSceneComponent() {
 	groundParticleSystem = groundParticleSystemFinder.Object;
 }
 
-UBloodMoonParticleSceneComponent::~UBloodMoonParticleSceneComponent() {
-	End();
-}
-
 void UBloodMoonParticleSceneComponent::BeginPlay() {
 	Super::BeginPlay();	
+}
+
+void UBloodMoonParticleSceneComponent::EndPlay(const EEndPlayReason::Type EndPlayReason) {
+	End();
 }
 
 void UBloodMoonParticleSceneComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) {
