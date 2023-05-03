@@ -164,6 +164,7 @@ void ABloodMoonSubsystem::ResetCreatureSpawners() {
 
 void ABloodMoonSubsystem::OnMidnightSequenceEnd() {
 	ResumeWorldCompositionUpdates();
+	ResetCreatureSpawners();
 	TriggerBloodMoonPostMidnight();
 }
 
@@ -200,12 +201,15 @@ void ABloodMoonSubsystem::TriggerBloodMoonPreMidnight() {
 
 void ABloodMoonSubsystem::TriggerBloodMoonMidnight() {
 	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Starting blood moon midnight sequence"))
-	ResetCreatureSpawners();
 	StartGroundParticleSystem();
 	//PauseTimeSubsystem();
-	// TODO: Check that suspension of world composition updates here won't impact ability to manually load levels/tiles in sequence
-	SuspendWorldCompositionUpdates();
-	BuildMidnightSequence();
+	if (config_enableCutscene) {
+		// TODO: Check that suspension of world composition updates here won't impact ability to manually load levels/tiles in sequence
+		SuspendWorldCompositionUpdates();
+		BuildMidnightSequence();
+	} else {
+		ResetCreatureSpawners();
+	}
 }
 
 void ABloodMoonSubsystem::TriggerBloodMoonPostMidnight() {
@@ -250,8 +254,6 @@ void ABloodMoonSubsystem::EndGroundParticleSystem() {
 }
 
 void ABloodMoonSubsystem::BuildMidnightSequence() {
-	if (!config_enableCutscene) { return; }
-
 	FMovieSceneSequencePlaybackSettings sequenceSettings;
 	sequenceSettings.bAutoPlay = true;
 	sequenceSettings.bRestoreState = true;
