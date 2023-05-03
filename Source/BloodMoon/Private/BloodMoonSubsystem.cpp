@@ -169,9 +169,12 @@ void ABloodMoonSubsystem::ResetCreatureSpawners() {
 	}
 }
 
+void ABloodMoonSubsystem::OnMidnightSequenceStart() {
+	ResetCreatureSpawners();
+}
+
 void ABloodMoonSubsystem::OnMidnightSequenceEnd() {
 	ResumeWorldCompositionUpdates();
-	ResetCreatureSpawners();
 	TriggerBloodMoonPostMidnight();
 }
 

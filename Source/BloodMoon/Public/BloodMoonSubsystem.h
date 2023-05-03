@@ -25,6 +25,8 @@ public:
 	UFUNCTION()
 	void OnDayStateChanged();
 	UFUNCTION(BlueprintCallable)
+	void OnMidnightSequenceStart();
+	UFUNCTION(BlueprintCallable)
 	void OnMidnightSequenceEnd();
 
 private:
