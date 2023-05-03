@@ -18,6 +18,7 @@ public:
 	ABloodMoonSubsystem();
 	virtual void BeginPlay() override;
 	virtual void Tick(float deltaSeconds) override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason);
 
 	UFUNCTION()
 	void OnNewDay();
@@ -45,6 +46,8 @@ private:
 	bool isBloodMoonDone = false;
 
 	double vanillaTilesStreamingTimeThreshold = 5.0;
+
+	bool isDestroyed = false;
 
 	// Setup
 

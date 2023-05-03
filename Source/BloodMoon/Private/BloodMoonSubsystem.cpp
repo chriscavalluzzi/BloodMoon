@@ -33,6 +33,10 @@ void ABloodMoonSubsystem::BeginPlay() {
 	UpdateBloodMoonNightStatus();
 }
 
+void ABloodMoonSubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason) {
+	isDestroyed = true;
+}
+
 void ABloodMoonSubsystem::RegisterImmediateHooks() {
 #if !WITH_EDITOR
 	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
@@ -49,7 +53,7 @@ void ABloodMoonSubsystem::RegisterImmediateHooks() {
 void ABloodMoonSubsystem::RegisterDelayedHooks() {
 #if !WITH_EDITOR
 	SUBSCRIBE_METHOD_AFTER(UConfigManager::MarkConfigurationDirty, [this](UConfigManager* self, const FConfigId& ConfigId) {
-		if (ConfigId == FConfigId{ "BloodMoon", "" }) {
+		if (!this->isDestroyed && ConfigId == FConfigId{ "BloodMoon", "" }) {
 			// The user config has been updated, reload it
 			UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Config marked dirty, reloading...."))
 			this->UpdateConfig();
@@ -58,8 +62,10 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 
 	AFGCharacterPlayer* examplePlayerCharacter = GetMutableDefault<AFGCharacterPlayer>();
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::SetupPlayerInputComponent, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, UInputComponent* PlayerInputComponent) {
-		CreateGroundParticleComponent();
-		UpdateBloodMoonNightStatus();
+		if (!this->isDestroyed) {
+			CreateGroundParticleComponent();
+			UpdateBloodMoonNightStatus();
+		}
 	});
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::CrouchPressed, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self) {
 		// DEV test action
@@ -68,18 +74,17 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 	});
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::Tick, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, float deltaTime) {
 		// DEV
-		//UE_LOG(LogTemp, Warning, TEXT("Rotator: %s"), *self->GetCameraComponentForwardVector().ToCompactString())
-		//UE_LOG(LogTemp, Warning, TEXT("Location: %s"), *self->GetTransform().GetLocation().ToCompactString())
+		//UE_LOG(LogTemp, Warning, TEXT("LOC: %s | ROT: %s"), *self->GetTransform().GetLocation().ToCompactString(), *self->GetCameraComponentForwardVector().ToCompactString())
 	});
 
 	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
 	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::Tick, exampleSkySphere, [this](auto& scope, AFGSkySphere* self, float deltaTime) {
-		if (IsValid(GetTimeSubsystem())) {
-			//UE_LOG(LogTemp, Warning, TEXT(">>> DAY %d - %f"), this->GetDayNumber(), this->GetNightPercent());
-		}
+		//if (IsValid(GetTimeSubsystem())) {
+		//	//UE_LOG(LogTemp, Warning, TEXT(">>> DAY %d - %f"), this->GetDayNumber(), this->GetNightPercent());
+		//}
 	});
 	SUBSCRIBE_METHOD(ULightComponent::SetLightColor, [this](auto& scope, ULightComponent* self, FLinearColor color, bool bSRGB = true) {
-		if (self->GetOwner() == moonLight && isBloodMoonNight) {
+		if (isBloodMoonNight && !this->isDestroyed && self->GetOwner() == moonLight) {
 			scope(self, FLinearColor(1, 0, 0), bSRGB);
 			scope.Cancel();
 		}
