@@ -34,6 +34,7 @@ void ABloodMoonSubsystem::BeginPlay() {
 }
 
 void ABloodMoonSubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason) {
+	Super::EndPlay(EndPlayReason);
 	isDestroyed = true;
 }
 
@@ -101,7 +102,10 @@ void ABloodMoonSubsystem::UpdateConfig() {
 		config_enableCutscene = config.enableCutscene;
 		config_enableParticleEffects = config.enableParticleEffects;
 		config_enableRevive = config.enableRevive;
-		config_enableReviveNearBases = config.enableReviveNearBases;
+		config_skipReviveNearBases = config.skipReviveNearBases;
+		config_distanceConsideredClose = config.distanceConsideredClose * 100.0f;
+
+		ChangeDistanceConsideredClose(config_distanceConsideredClose);
 
 		UpdateBloodMoonNightStatus();
 
@@ -110,6 +114,16 @@ void ABloodMoonSubsystem::UpdateConfig() {
 		} else {
 			EndGroundParticleSystem();
 		}
+	}
+}
+
+void ABloodMoonSubsystem::StartCreatureSpawnerBaseTrace() {
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Running TraceForNearbyBase on all spawners (async)"))
+	TArray<AActor*> creatureSpawners;
+	UGameplayStatics::GetAllActorsOfClass(SafeGetWorld(), AFGCreatureSpawner::StaticClass(), creatureSpawners);
+	for (int i = 0; i < creatureSpawners.Num(); i++) {
+		AFGCreatureSpawner* spawner = Cast<AFGCreatureSpawner>(creatureSpawners[i]);
+		spawner->TraceForNearbyBase();
 	}
 }
 
@@ -150,17 +164,17 @@ void ABloodMoonSubsystem::Tick(float deltaSeconds) {
 void ABloodMoonSubsystem::ResetCreatureSpawners() {
 	if (config_enableRevive) {
 		TArray<AActor*> creatureSpawners;
-		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AFGCreatureSpawner::StaticClass(), creatureSpawners);
+		UGameplayStatics::GetAllActorsOfClass(SafeGetWorld(), AFGCreatureSpawner::StaticClass(), creatureSpawners);
 		for (int i = 0; i < creatureSpawners.Num(); i++) {
 			AFGCreatureSpawner* spawner = Cast<AFGCreatureSpawner>(creatureSpawners[i]);
-			if (spawner && (config_enableReviveNearBases || !spawner->IsNearBase())) {
+			if (spawner && (!config_skipReviveNearBases || !spawner->IsNearBase())) {
 				for (int j = 0; j < spawner->mSpawnData.Num(); j++) {
 					FSpawnData* spawnData = &spawner->mSpawnData[j];
 					if (spawnData->NumTimesKilled >= 1 && !IsValid(spawnData->Creature)) {
 						spawnData->WasKilled = false;
 						spawnData->NumTimesKilled = 0;
 						spawnData->KilledOnDayNr = -1;
-						UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Reviving: Spawner %d, Creature %d/%d"), i, j+1, spawner->mSpawnData.Num())
+						UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Reviving creature! (Spawner %d, Creature %d/%d)"), i, j+1, spawner->mSpawnData.Num())
 					}
 					spawner->PopulateSpawnData();
 				}
@@ -290,7 +304,7 @@ void ABloodMoonSubsystem::ResumeWorldCompositionUpdates() {
 }
 
 AFGTimeOfDaySubsystem* ABloodMoonSubsystem::GetTimeSubsystem() {
-	return AFGTimeOfDaySubsystem::Get(GetWorld());
+	return AFGTimeOfDaySubsystem::Get(SafeGetWorld());
 }
 
 void ABloodMoonSubsystem::PauseTimeSubsystem() {
@@ -307,4 +321,23 @@ int32 ABloodMoonSubsystem::GetDayNumber() {
 
 float ABloodMoonSubsystem::GetNightPercent() {
 	return GetTimeSubsystem()->GetNightPct();
+}
+
+AFGBuildableSubsystem* ABloodMoonSubsystem::GetBuildableSubsystem() {
+	return AFGBuildableSubsystem::Get(SafeGetWorld());
+}
+
+void ABloodMoonSubsystem::ChangeDistanceConsideredClose(float newDistanceConsideredClose) {
+	if (AFGBuildableSubsystem* buildableSubsystem = GetBuildableSubsystem()) {
+		buildableSubsystem->mDistanceConsideredClose = newDistanceConsideredClose;
+		StartCreatureSpawnerBaseTrace();
+	}
+}
+
+UWorld* ABloodMoonSubsystem::SafeGetWorld() {
+	if (isDestroyed) {
+		return nullptr;
+	} else {
+		return GetWorld();
+	}
 }

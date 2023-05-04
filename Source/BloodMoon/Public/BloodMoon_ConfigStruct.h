@@ -25,7 +25,10 @@ public:
     bool enableRevive;
 
     UPROPERTY(BlueprintReadWrite)
-    bool enableReviveNearBases;
+    bool skipReviveNearBases;
+
+    UPROPERTY(BlueprintReadWrite)
+    float distanceConsideredClose;
 
     /* Retrieves active configuration value and returns object of this struct containing it */
     static FBloodMoon_ConfigStruct GetActiveConfig() {

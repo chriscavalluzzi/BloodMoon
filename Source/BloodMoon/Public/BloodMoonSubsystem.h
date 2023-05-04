@@ -4,6 +4,7 @@
 #include "Subsystem/ModSubsystem.h"
 #include "FGSkySphere.h"
 #include "FGTimeSubsystem.h"
+#include "FGBuildableSubsystem.h"
 #include "LevelSequencePlayer.h"
 #include "LevelSequenceActor.h"
 #include "BloodMoon_ConfigStruct.h"
@@ -35,7 +36,8 @@ private:
 	bool config_enableCutscene;
 	bool config_enableParticleEffects;
 	bool config_enableRevive;
-	bool config_enableReviveNearBases;
+	bool config_skipReviveNearBases;
+	float config_distanceConsideredClose;
 
 	AFGSkySphere* skySphere;
 	ADirectionalLight* moonLight;
@@ -50,12 +52,15 @@ private:
 
 	bool isDestroyed = false;
 
+	UWorld* SafeGetWorld();
+
 	// Setup
 
 	void RegisterImmediateHooks();
 	void RegisterDelayedHooks();
 	void RegisterDelegates();
 	void UpdateConfig();
+	void StartCreatureSpawnerBaseTrace();
 	void CreateGroundParticleComponent();
 
 	// Status Changes
@@ -88,5 +93,10 @@ private:
 	void UnpauseTimeSubsystem();
 	int32 GetDayNumber();
 	float GetNightPercent();
+
+	// Buildable Subsystem
+
+	AFGBuildableSubsystem* GetBuildableSubsystem();
+	void ChangeDistanceConsideredClose(float newDistanceConsideredClose);
 
 };
