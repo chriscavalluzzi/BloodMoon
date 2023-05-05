@@ -15,6 +15,7 @@ void UBloodMoonParticleSceneComponent::BeginPlay() {
 }
 
 void UBloodMoonParticleSceneComponent::EndPlay(const EEndPlayReason::Type EndPlayReason) {
+	Super::EndPlay(EndPlayReason);
 	End();
 }
 

@@ -12,10 +12,13 @@
 #include "Engine/WorldComposition.h"
 
 ABloodMoonSubsystem::ABloodMoonSubsystem() {
-	//PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = true;
+	ReplicationPolicy = ESubsystemReplicationPolicy::SpawnLocal;
 
 	static ConstructorHelpers::FObjectFinder<ULevelSequence> midnightSequenceFinder(TEXT("LevelSequence'/BloodMoon/BloodMoonMidnightSequence.BloodMoonMidnightSequence'"));
 	midnightSequence = midnightSequenceFinder.Object;
+	static ConstructorHelpers::FObjectFinder<ULevelSequence> midnightSequenceNoCutFinder(TEXT("LevelSequence'/BloodMoon/BloodMoonMidnightSequence_NoCut.BloodMoonMidnightSequence_NoCut'"));
+	midnightSequenceNoCut = midnightSequenceNoCutFinder.Object;
 
 	RegisterImmediateHooks();
 }
@@ -25,17 +28,29 @@ void ABloodMoonSubsystem::BeginPlay() {
 
 	Super::BeginPlay();
 
+	CheckIfReadyForSetup();
+}
+
+void ABloodMoonSubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason) {
+	Super::EndPlay(EndPlayReason);
+	isDestroyed = true;
+}
+
+void ABloodMoonSubsystem::CheckIfReadyForSetup() {
+	if (GetTimeSubsystem()) {
+		Setup();
+	}
+}
+
+void ABloodMoonSubsystem::Setup() {
 	CreateGroundParticleComponent();
 	UpdateConfig();
 	RegisterDelayedHooks();
 	RegisterDelegates();
 	GetTimeSubsystem()->mNumberOfPassedDays = 48; // DEV
 	UpdateBloodMoonNightStatus();
-}
 
-void ABloodMoonSubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason) {
-	Super::EndPlay(EndPlayReason);
-	isDestroyed = true;
+	SetActorTickEnabled(false); // Ticking no longer required, disable for rest of life
 }
 
 void ABloodMoonSubsystem::RegisterImmediateHooks() {
@@ -158,7 +173,7 @@ void ABloodMoonSubsystem::OnDayStateChanged() {
 }
 
 void ABloodMoonSubsystem::Tick(float deltaSeconds) {
-	
+	CheckIfReadyForSetup();
 }
 
 void ABloodMoonSubsystem::ResetCreatureSpawners() {
@@ -195,7 +210,7 @@ void ABloodMoonSubsystem::OnMidnightSequenceEnd() {
 void ABloodMoonSubsystem::UpdateBloodMoonNightStatus() {
 	if (config_enableMod) {
 		AFGTimeOfDaySubsystem* timeSubsystem = GetTimeSubsystem();
-		if (GetDayNumber() % config_daysBetweenBloodMoon == (config_daysBetweenBloodMoon - 1) && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() >= 0.5f) {
+		if (timeSubsystem && GetDayNumber() % config_daysBetweenBloodMoon == (config_daysBetweenBloodMoon - 1) && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() >= 0.5f) {
 			TriggerBloodMoonEarlyNight();
 		} else if (GetDayNumber() % config_daysBetweenBloodMoon == 0 && GetDayNumber() > 0 && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() < 0.5f) {
 			TriggerBloodMoonPostMidnight();
@@ -288,8 +303,15 @@ void ABloodMoonSubsystem::BuildMidnightSequence() {
 	loopCount.Value = 0;
 	sequenceSettings.LoopCount = loopCount;
 
+	ULevelSequence* sequence;
+	if (IsHost()) {
+		sequence = midnightSequence;
+	} else {
+		sequence = midnightSequenceNoCut;
+	}
+
 	ALevelSequenceActor* midnightSequenceActorPtr = NewObject<ALevelSequenceActor>(this);
-	midnightSequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(this, midnightSequence, sequenceSettings, midnightSequenceActorPtr);
+	midnightSequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(this, sequence, sequenceSettings, midnightSequenceActorPtr);
 }
 
 void ABloodMoonSubsystem::SuspendWorldCompositionUpdates() {
@@ -340,4 +362,9 @@ UWorld* ABloodMoonSubsystem::SafeGetWorld() {
 	} else {
 		return GetWorld();
 	}
+}
+
+bool ABloodMoonSubsystem::IsHost() {
+	AGameModeBase* gm = UGameplayStatics::GetGameMode(GetWorld());
+	return (gm && gm->HasAuthority());
 }

@@ -43,6 +43,7 @@ private:
 	ADirectionalLight* moonLight;
 
 	ULevelSequence* midnightSequence;
+	ULevelSequence* midnightSequenceNoCut;
 	ULevelSequencePlayer* midnightSequencePlayer;
 
 	bool isBloodMoonNight = false;
@@ -53,9 +54,12 @@ private:
 	bool isDestroyed = false;
 
 	UWorld* SafeGetWorld();
+	bool IsHost();
 
 	// Setup
 
+	void CheckIfReadyForSetup();
+	void Setup();
 	void RegisterImmediateHooks();
 	void RegisterDelayedHooks();
 	void RegisterDelegates();
