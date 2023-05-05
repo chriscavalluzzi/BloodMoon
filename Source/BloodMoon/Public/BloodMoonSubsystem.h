@@ -31,15 +31,20 @@ public:
 	void OnMidnightSequenceEnd();
 
 private:
+	UPROPERTY(ReplicatedUsing = ApplyConfig)
 	bool config_enableMod;
+	UPROPERTY(ReplicatedUsing = ApplyConfig)
 	int32 config_daysBetweenBloodMoon;
+	UPROPERTY(ReplicatedUsing = ApplyConfig)
 	bool config_enableCutscene;
-	bool config_enableParticleEffects;
+	UPROPERTY(ReplicatedUsing = ApplyConfig)
 	bool config_enableRevive;
+	UPROPERTY(ReplicatedUsing = ApplyConfig)
 	bool config_skipReviveNearBases;
+	UPROPERTY(ReplicatedUsing = ApplyConfig)
 	float config_distanceConsideredClose;
+	bool config_enableParticleEffects;
 
-	AFGSkySphere* skySphere;
 	ADirectionalLight* moonLight;
 
 	ULevelSequence* midnightSequence;
@@ -51,10 +56,12 @@ private:
 
 	double vanillaTilesStreamingTimeThreshold = 5.0;
 
+	bool isSetup = false;
 	bool isDestroyed = false;
 
 	UWorld* SafeGetWorld();
 	bool IsHost();
+	bool IsSafeToAccessWorld();
 
 	// Setup
 
@@ -64,6 +71,8 @@ private:
 	void RegisterDelayedHooks();
 	void RegisterDelegates();
 	void UpdateConfig();
+	UFUNCTION()
+	void ApplyConfig();
 	void StartCreatureSpawnerBaseTrace();
 	void CreateGroundParticleComponent();
 

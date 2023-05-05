@@ -13,7 +13,8 @@
 
 ABloodMoonSubsystem::ABloodMoonSubsystem() {
 	PrimaryActorTick.bCanEverTick = true;
-	ReplicationPolicy = ESubsystemReplicationPolicy::SpawnLocal;
+	ReplicationPolicy = ESubsystemReplicationPolicy::SpawnOnServer_Replicate;
+	bReplicates = true;
 
 	static ConstructorHelpers::FObjectFinder<ULevelSequence> midnightSequenceFinder(TEXT("LevelSequence'/BloodMoon/BloodMoonMidnightSequence.BloodMoonMidnightSequence'"));
 	midnightSequence = midnightSequenceFinder.Object;
@@ -21,6 +22,16 @@ ABloodMoonSubsystem::ABloodMoonSubsystem() {
 	midnightSequenceNoCut = midnightSequenceNoCutFinder.Object;
 
 	RegisterImmediateHooks();
+}
+
+void ABloodMoonSubsystem::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const {
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ABloodMoonSubsystem, config_enableMod);
+	DOREPLIFETIME(ABloodMoonSubsystem, config_daysBetweenBloodMoon);
+	DOREPLIFETIME(ABloodMoonSubsystem, config_enableCutscene);
+	DOREPLIFETIME(ABloodMoonSubsystem, config_enableRevive);
+	DOREPLIFETIME(ABloodMoonSubsystem, config_skipReviveNearBases);
+	DOREPLIFETIME(ABloodMoonSubsystem, config_distanceConsideredClose);
 }
 
 void ABloodMoonSubsystem::BeginPlay() {
@@ -43,11 +54,22 @@ void ABloodMoonSubsystem::CheckIfReadyForSetup() {
 }
 
 void ABloodMoonSubsystem::Setup() {
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Running setup"))
+	isSetup = true;
+
+	TArray<AActor*> skySpheres;
+	UGameplayStatics::GetAllActorsOfClass(SafeGetWorld(), AFGSkySphere::StaticClass(), skySpheres);
+	for (int i = 0; i < skySpheres.Num(); i++) {
+		AFGSkySphere* s = Cast<AFGSkySphere>(skySpheres[i]);
+		if (s && s->mMoonLight) {
+			moonLight = s->mMoonLight;
+		}
+	}
+
 	CreateGroundParticleComponent();
 	UpdateConfig();
 	RegisterDelayedHooks();
 	RegisterDelegates();
-	GetTimeSubsystem()->mNumberOfPassedDays = 48; // DEV
 	UpdateBloodMoonNightStatus();
 
 	SetActorTickEnabled(false); // Ticking no longer required, disable for rest of life
@@ -57,11 +79,8 @@ void ABloodMoonSubsystem::RegisterImmediateHooks() {
 #if !WITH_EDITOR
 	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
 	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::BeginPlay, exampleSkySphere, [this](auto& scope, AFGSkySphere* self) {
-		UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Registering SkySphere..."))
-		skySphere = self;
+		UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Registering MoonLight..."))
 		moonLight = self->mMoonLight;
-		//UE_LOG(LogTemp, Warning, TEXT(">>>>> MOON ROTATION AXIS: %s"), *self->mMoonRotationAxis.ToCompactString())
-		//UE_LOG(LogTemp, Warning, TEXT(">>>>> MOON ROTATION ORIGIN: %s"), *self->mMoonOriginRotation.ToCompactString())
 	});
 #endif
 }
@@ -69,7 +88,7 @@ void ABloodMoonSubsystem::RegisterImmediateHooks() {
 void ABloodMoonSubsystem::RegisterDelayedHooks() {
 #if !WITH_EDITOR
 	SUBSCRIBE_METHOD_AFTER(UConfigManager::MarkConfigurationDirty, [this](UConfigManager* self, const FConfigId& ConfigId) {
-		if (!this->isDestroyed && ConfigId == FConfigId{ "BloodMoon", "" }) {
+		if (this->IsSafeToAccessWorld() && ConfigId == FConfigId{ "BloodMoon", "" }) {
 			// The user config has been updated, reload it
 			UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Config marked dirty, reloading...."))
 			this->UpdateConfig();
@@ -78,14 +97,13 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 
 	AFGCharacterPlayer* examplePlayerCharacter = GetMutableDefault<AFGCharacterPlayer>();
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::SetupPlayerInputComponent, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, UInputComponent* PlayerInputComponent) {
-		if (!this->isDestroyed) {
+		if (this->IsSafeToAccessWorld()) {
 			CreateGroundParticleComponent();
 			UpdateBloodMoonNightStatus();
 		}
 	});
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::CrouchPressed, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self) {
 		// DEV test action
-		//ResetCreatureSpawners();
 		//TriggerBloodMoonMidnight();
 	});
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::Tick, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, float deltaTime) {
@@ -100,7 +118,7 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 		//}
 	});
 	SUBSCRIBE_METHOD(ULightComponent::SetLightColor, [this](auto& scope, ULightComponent* self, FLinearColor color, bool bSRGB = true) {
-		if (isBloodMoonNight && !this->isDestroyed && self->GetOwner() == moonLight) {
+		if (isBloodMoonNight && this->IsSafeToAccessWorld() && self->GetOwner() == moonLight) {
 			scope(self, FLinearColor(1, 0, 0), bSRGB);
 			scope.Cancel();
 		}
@@ -112,18 +130,24 @@ void ABloodMoonSubsystem::UpdateConfig() {
 	if (IsValid(this)) {
 		FBloodMoon_ConfigStruct config = FBloodMoon_ConfigStruct::GetActiveConfig();
 
-		config_enableMod = config.enableMod;
-		config_daysBetweenBloodMoon = config.daysBetweenBloodMoon;
-		config_enableCutscene = config.enableCutscene;
+		if (IsHost()) {
+			config_enableMod = config.enableMod;
+			config_daysBetweenBloodMoon = config.daysBetweenBloodMoon;
+			config_enableCutscene = config.enableCutscene;
+			config_enableRevive = config.enableRevive;
+			config_skipReviveNearBases = config.skipReviveNearBases;
+			config_distanceConsideredClose = config.distanceConsideredClose * 100.0f;
+		}
 		config_enableParticleEffects = config.enableParticleEffects;
-		config_enableRevive = config.enableRevive;
-		config_skipReviveNearBases = config.skipReviveNearBases;
-		config_distanceConsideredClose = config.distanceConsideredClose * 100.0f;
 
+		ApplyConfig();
+	}
+}
+
+void ABloodMoonSubsystem::ApplyConfig() {
+	if (IsSafeToAccessWorld()) {
 		ChangeDistanceConsideredClose(config_distanceConsideredClose);
-
 		UpdateBloodMoonNightStatus();
-
 		if (config_enableMod && config_enableParticleEffects && isBloodMoonNight) {
 			StartGroundParticleSystem();
 		} else {
@@ -357,14 +381,18 @@ void ABloodMoonSubsystem::ChangeDistanceConsideredClose(float newDistanceConside
 }
 
 UWorld* ABloodMoonSubsystem::SafeGetWorld() {
-	if (isDestroyed) {
-		return nullptr;
-	} else {
+	if (!isDestroyed) {
 		return GetWorld();
+	} else {
+		return nullptr;
 	}
 }
 
 bool ABloodMoonSubsystem::IsHost() {
 	AGameModeBase* gm = UGameplayStatics::GetGameMode(GetWorld());
 	return (gm && gm->HasAuthority());
+}
+
+bool ABloodMoonSubsystem::IsSafeToAccessWorld() {
+	return isSetup && !isDestroyed;
 }
