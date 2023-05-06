@@ -112,6 +112,13 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 		//UE_LOG(LogTemp, Warning, TEXT("LOC: %s | ROT: %s"), *self->GetTransform().GetLocation().ToCompactString(), *self->GetCameraComponentForwardVector().ToCompactString())
 	});
 
+	UFGHealthComponent* exampleHealthComponent = GetMutableDefault<UFGHealthComponent>();
+	SUBSCRIBE_METHOD_VIRTUAL(UFGHealthComponent::TakeDamage, exampleHealthComponent, [this](auto& scope, UFGHealthComponent* self, AActor* damagedActor, float damageAmount, const class UDamageType* damageType, class AController* instigatedBy, AActor* damageCauser) {
+		if (this->isMidnightSequenceInProgress) {
+			scope.Cancel();
+		}
+	});
+
 	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
 	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::Tick, exampleSkySphere, [this](auto& scope, AFGSkySphere* self, float deltaTime) {
 		//if (IsValid(GetTimeSubsystem())) {
@@ -232,6 +239,7 @@ void ABloodMoonSubsystem::OnMidnightSequenceEnd() {
 	ResumeWorldCompositionUpdates();
 	TriggerBloodMoonPostMidnight();
 	SetUIVisibility(true);
+	isMidnightSequenceInProgress = false;
 }
 
 void ABloodMoonSubsystem::UpdateBloodMoonNightStatus() {
@@ -271,6 +279,7 @@ void ABloodMoonSubsystem::TriggerBloodMoonMidnight() {
 	//PauseTimeSubsystem();
 	if (config_enableCutscene) {
 		// TODO: Check that suspension of world composition updates here won't impact ability to manually load levels/tiles in sequence
+		isMidnightSequenceInProgress = true;
 		SuspendWorldCompositionUpdates();
 		BuildMidnightSequence();
 	} else {

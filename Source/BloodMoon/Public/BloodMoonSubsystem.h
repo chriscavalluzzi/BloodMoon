@@ -53,6 +53,7 @@ private:
 	ULevelSequencePlayer* midnightSequencePlayer;
 
 	bool isBloodMoonNight = false;
+	bool isMidnightSequenceInProgress = false;
 	bool isBloodMoonDone = false;
 
 	double vanillaTilesStreamingTimeThreshold = 5.0;
