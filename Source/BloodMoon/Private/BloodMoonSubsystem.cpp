@@ -104,17 +104,43 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 		}
 	});
 
-	UFGHealthComponent* exampleHealthComponent = GetMutableDefault<UFGHealthComponent>();
-	SUBSCRIBE_METHOD_VIRTUAL(UFGHealthComponent::TakeDamage, exampleHealthComponent, [this](auto& scope, UFGHealthComponent* self, AActor* damagedActor, float damageAmount, const class UDamageType* damageType, class AController* instigatedBy, AActor* damageCauser) {
+	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
+	SUBSCRIBE_METHOD(ULightComponent::SetLightColor, [this](auto& scope, ULightComponent* self, FLinearColor color, bool bSRGB = true) {
+		if (isBloodMoonNight && this->IsSafeToAccessWorld() && self->GetOwner() == moonLight) {
+			scope(self, FLinearColor(1, 0, 0), bSRGB);
+			scope.Cancel();
+		}
+	});
+
+	// Midnight sequence overrides
+
+	AFGCharacterBase* exampleCharacterBase = GetMutableDefault<AFGCharacterBase>();
+	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterBase::OnTakeRadialDamage, exampleCharacterBase, [this](auto& scope, AFGCharacterBase* self, AActor* damagedActor, float damage, const class UDamageType* damageType, FVector hitLocation, FHitResult hitInfo, class AController* instigatedBy, AActor* damageCauser) {
+		if (this->isMidnightSequenceInProgress) {
+			scope.Cancel();
+		}
+	});
+	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterBase::OnTakePointDamage, exampleCharacterBase, [this](auto& scope, AFGCharacterBase* self, AActor* damagedActor, float damage, class AController* instigatedBy, FVector hitLocation, class UPrimitiveComponent* hitComponent, FName boneName, FVector shotFromDirection, const class UDamageType* damageType, AActor* damageCauser) {
 		if (this->isMidnightSequenceInProgress) {
 			scope.Cancel();
 		}
 	});
 
-	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
-	SUBSCRIBE_METHOD(ULightComponent::SetLightColor, [this](auto& scope, ULightComponent* self, FLinearColor color, bool bSRGB = true) {
-		if (isBloodMoonNight && this->IsSafeToAccessWorld() && self->GetOwner() == moonLight) {
-			scope(self, FLinearColor(1, 0, 0), bSRGB);
+	APlayerCameraManager* examplePlayerCameraManager = GetMutableDefault<APlayerCameraManager>();
+	SUBSCRIBE_METHOD_VIRTUAL(APlayerCameraManager::StartCameraShake, examplePlayerCameraManager, [this](auto& scope, APlayerCameraManager* self, TSubclassOf<UCameraShakeBase> ShakeClass, float Scale = 1.f, ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal, FRotator UserPlaySpaceRot = FRotator::ZeroRotator) {
+		if (this->isMidnightSequenceInProgress) {
+			scope.Override(nullptr);
+		}
+	});
+	SUBSCRIBE_METHOD_VIRTUAL(APlayerCameraManager::PlayCameraAnim, examplePlayerCameraManager, [this](auto& scope, APlayerCameraManager* self, class UCameraAnim* Anim, float Rate = 1.f, float Scale = 1.f, float BlendInTime = 0.f, float BlendOutTime = 0.f, bool bLoop = false, bool bRandomStartTime = false, float Duration = 0.f, ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal, FRotator UserPlaySpaceRot = FRotator::ZeroRotator) {
+		if (this->isMidnightSequenceInProgress) {
+			scope.Override(nullptr);
+		}
+	});
+
+	UFGHealthComponent* exampleHealthComponent = GetMutableDefault<UFGHealthComponent>();
+	SUBSCRIBE_METHOD_VIRTUAL(UFGHealthComponent::TakeDamage, exampleHealthComponent, [this](auto& scope, UFGHealthComponent* self, AActor* damagedActor, float damageAmount, const class UDamageType* damageType, class AController* instigatedBy, AActor* damageCauser) {
+		if (this->isMidnightSequenceInProgress) {
 			scope.Cancel();
 		}
 	});
@@ -316,6 +342,8 @@ void ABloodMoonSubsystem::EndGroundParticleSystem() {
 		particles->End();
 	}
 }
+
+//either freeze creatures or disable camera shake on damgage during sequence
 
 void ABloodMoonSubsystem::BuildMidnightSequence() {
 	FMovieSceneSequencePlaybackSettings sequenceSettings;
