@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 #include "FGGameMode.h"
 #include "FGCharacterPlayer.h"
+#include "UI/FGGameUI.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "FGSkySphere.h"
 #include "FGWorldSettings.h"
@@ -224,11 +225,13 @@ void ABloodMoonSubsystem::ResetCreatureSpawners() {
 
 void ABloodMoonSubsystem::OnMidnightSequenceStart() {
 	ResetCreatureSpawners();
+	SetUIVisibility(false);
 }
 
 void ABloodMoonSubsystem::OnMidnightSequenceEnd() {
 	ResumeWorldCompositionUpdates();
 	TriggerBloodMoonPostMidnight();
+	SetUIVisibility(true);
 }
 
 void ABloodMoonSubsystem::UpdateBloodMoonNightStatus() {
@@ -395,4 +398,23 @@ bool ABloodMoonSubsystem::IsHost() {
 
 bool ABloodMoonSubsystem::IsSafeToAccessWorld() {
 	return isSetup && !isDestroyed;
+}
+
+UFGGameUI* ABloodMoonSubsystem::GetGameUI() {
+	if (ACharacter* character = GetCharacter()) {
+		if (AController* controller = character->Controller) {
+			if (AFGPlayerController* playerController = Cast<AFGPlayerController>(controller)) {
+				if (AFGHUD* hud = playerController->GetHUD<AFGHUD>()) {
+					return hud->GetGameUI();
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
+void ABloodMoonSubsystem::SetUIVisibility(bool newVisibility) {
+	if (UFGGameUI* ui = GetGameUI()) {
+		ui->SetVisibility(newVisibility ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+	}
 }

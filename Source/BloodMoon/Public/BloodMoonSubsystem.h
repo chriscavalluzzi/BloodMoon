@@ -5,6 +5,7 @@
 #include "FGSkySphere.h"
 #include "FGTimeSubsystem.h"
 #include "FGBuildableSubsystem.h"
+#include "FGPlayerController.h"
 #include "LevelSequencePlayer.h"
 #include "LevelSequenceActor.h"
 #include "BloodMoon_ConfigStruct.h"
@@ -111,5 +112,9 @@ private:
 
 	AFGBuildableSubsystem* GetBuildableSubsystem();
 	void ChangeDistanceConsideredClose(float newDistanceConsideredClose);
+
+	// UI
+	UFGGameUI* GetGameUI();
+	void SetUIVisibility(bool newVisibility);
 
 };
