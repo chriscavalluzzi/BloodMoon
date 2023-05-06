@@ -4,13 +4,13 @@
 	"VersionName": "1.0.0",
 	"SemVersion": "1.0.0",
 	"FriendlyName": "Blood Moon",
-	"Description": "",
+	"Description": "A mod that periodically turns the moon blood red and (optionally) revives creatures in the world.",
 	"Category": "Modding",
 	"CreatedBy": "Chris Cavalluzzi",
 	"CreatedByURL": "",
-	"DocsURL": "",
+	"DocsURL": "https://github.com/chriscavalluzzi/BloodMoon",
 	"MarketplaceURL": "",
-	"SupportURL": "",
+	"SupportURL": "https://github.com/chriscavalluzzi/BloodMoon",
 	"CanContainContent": true,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": false,
@@ -28,5 +28,6 @@
 			"SemVersion": "^3.4.1",
 			"Enabled": true
 		}
-	]
+	],
+	"RemoteVersionRange": "^1.0.0"
 }
