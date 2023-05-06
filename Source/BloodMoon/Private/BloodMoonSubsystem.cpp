@@ -98,18 +98,10 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 
 	AFGCharacterPlayer* examplePlayerCharacter = GetMutableDefault<AFGCharacterPlayer>();
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::SetupPlayerInputComponent, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, UInputComponent* PlayerInputComponent) {
-		if (this->IsSafeToAccessWorld()) {
+		if (this->IsSafeToAccessWorld() && GetWorld()) {
 			CreateGroundParticleComponent();
 			UpdateBloodMoonNightStatus();
 		}
-	});
-	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::CrouchPressed, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self) {
-		// DEV test action
-		//TriggerBloodMoonMidnight();
-	});
-	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::Tick, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, float deltaTime) {
-		// DEV
-		//UE_LOG(LogTemp, Warning, TEXT("LOC: %s | ROT: %s"), *self->GetTransform().GetLocation().ToCompactString(), *self->GetCameraComponentForwardVector().ToCompactString())
 	});
 
 	UFGHealthComponent* exampleHealthComponent = GetMutableDefault<UFGHealthComponent>();
@@ -120,11 +112,6 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 	});
 
 	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
-	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::Tick, exampleSkySphere, [this](auto& scope, AFGSkySphere* self, float deltaTime) {
-		//if (IsValid(GetTimeSubsystem())) {
-		//	//UE_LOG(LogTemp, Warning, TEXT(">>> DAY %d - %f"), this->GetDayNumber(), this->GetNightPercent());
-		//}
-	});
 	SUBSCRIBE_METHOD(ULightComponent::SetLightColor, [this](auto& scope, ULightComponent* self, FLinearColor color, bool bSRGB = true) {
 		if (isBloodMoonNight && this->IsSafeToAccessWorld() && self->GetOwner() == moonLight) {
 			scope(self, FLinearColor(1, 0, 0), bSRGB);
@@ -245,12 +232,14 @@ void ABloodMoonSubsystem::OnMidnightSequenceEnd() {
 void ABloodMoonSubsystem::UpdateBloodMoonNightStatus() {
 	if (config_enableMod) {
 		AFGTimeOfDaySubsystem* timeSubsystem = GetTimeSubsystem();
-		if (timeSubsystem && GetDayNumber() % config_daysBetweenBloodMoon == (config_daysBetweenBloodMoon - 1) && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() >= 0.5f) {
-			TriggerBloodMoonEarlyNight();
-		} else if (GetDayNumber() % config_daysBetweenBloodMoon == 0 && GetDayNumber() > 0 && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() < 0.5f) {
-			TriggerBloodMoonPostMidnight();
-		} else {
-			ResetToStandardMoon();
+		if (timeSubsystem) {
+			if (GetDayNumber() % config_daysBetweenBloodMoon == (config_daysBetweenBloodMoon - 1) && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() >= 0.5f) {
+				TriggerBloodMoonEarlyNight();
+			} else if (GetDayNumber() % config_daysBetweenBloodMoon == 0 && GetDayNumber() > 0 && timeSubsystem->IsNight() && timeSubsystem->GetNormalizedTimeOfDay() < 0.5f) {
+				TriggerBloodMoonPostMidnight();
+			} else {
+				ResetToStandardMoon();
+			}
 		}
 	} else {
 		ResetToStandardMoon();
