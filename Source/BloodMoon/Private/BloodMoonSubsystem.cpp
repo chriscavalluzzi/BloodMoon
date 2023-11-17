@@ -11,8 +11,10 @@
 #include "Subsystem/SubsystemActorManager.h"
 #include "Creature/FGCreatureSpawner.h"
 #include "Engine/WorldComposition.h"
+#include "Net/UnrealNetwork.h"
 
 ABloodMoonSubsystem::ABloodMoonSubsystem() {
+#if !WITH_EDITOR
 	PrimaryActorTick.bCanEverTick = true;
 	ReplicationPolicy = ESubsystemReplicationPolicy::SpawnOnServer_Replicate;
 	bReplicates = true;
@@ -23,6 +25,7 @@ ABloodMoonSubsystem::ABloodMoonSubsystem() {
 	midnightSequenceNoCut = midnightSequenceNoCutFinder.Object;
 
 	RegisterImmediateHooks();
+#endif
 }
 
 void ABloodMoonSubsystem::GetLifetimeReplicatedProps(TArray< FLifetimeProperty >& OutLifetimeProps) const {
@@ -94,7 +97,7 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 			UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Config marked dirty, reloading...."))
 			this->UpdateConfig();
 		}
-	})
+	});
 
 	AFGCharacterPlayer* examplePlayerCharacter = GetMutableDefault<AFGCharacterPlayer>();
 	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::SetupPlayerInputComponent, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, UInputComponent* PlayerInputComponent) {
@@ -132,11 +135,13 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 			scope.Override(nullptr);
 		}
 	});
-	SUBSCRIBE_METHOD_VIRTUAL(APlayerCameraManager::PlayCameraAnim, examplePlayerCameraManager, [this](auto& scope, APlayerCameraManager* self, class UCameraAnim* Anim, float Rate = 1.f, float Scale = 1.f, float BlendInTime = 0.f, float BlendOutTime = 0.f, bool bLoop = false, bool bRandomStartTime = false, float Duration = 0.f, ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal, FRotator UserPlaySpaceRot = FRotator::ZeroRotator) {
+	/*
+	BMTODO SUBSCRIBE_METHOD_VIRTUAL(APlayerCameraManager::PlayCameraAnim, examplePlayerCameraManager, [this](auto& scope, APlayerCameraManager* self, class UCameraAnim* Anim, float Rate = 1.f, float Scale = 1.f, float BlendInTime = 0.f, float BlendOutTime = 0.f, bool bLoop = false, bool bRandomStartTime = false, float Duration = 0.f, ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal, FRotator UserPlaySpaceRot = FRotator::ZeroRotator) {
 		if (this->isMidnightSequenceInProgress) {
 			scope.Override(nullptr);
 		}
 	});
+	*/
 
 	UFGHealthComponent* exampleHealthComponent = GetMutableDefault<UFGHealthComponent>();
 	SUBSCRIBE_METHOD_VIRTUAL(UFGHealthComponent::TakeDamage, exampleHealthComponent, [this](auto& scope, UFGHealthComponent* self, AActor* damagedActor, float damageAmount, const class UDamageType* damageType, class AController* instigatedBy, AActor* damageCauser) {
@@ -148,8 +153,8 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 }
 
 void ABloodMoonSubsystem::UpdateConfig() {
-	if (IsValid(this)) {
-		FBloodMoon_ConfigStruct config = FBloodMoon_ConfigStruct::GetActiveConfig();
+	if (IsValid(this) && SafeGetWorld()) {
+		FBloodMoon_ConfigStruct config = FBloodMoon_ConfigStruct::GetActiveConfig(SafeGetWorld());
 
 		if (IsHost()) {
 			config_enableMod = config.enableMod;
@@ -346,6 +351,7 @@ void ABloodMoonSubsystem::EndGroundParticleSystem() {
 //either freeze creatures or disable camera shake on damgage during sequence
 
 void ABloodMoonSubsystem::BuildMidnightSequence() {
+	/* BMTODO
 	FMovieSceneSequencePlaybackSettings sequenceSettings;
 	sequenceSettings.bAutoPlay = true;
 	sequenceSettings.bRestoreState = true;
@@ -365,6 +371,7 @@ void ABloodMoonSubsystem::BuildMidnightSequence() {
 
 	ALevelSequenceActor* midnightSequenceActorPtr = NewObject<ALevelSequenceActor>(this);
 	midnightSequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(this, sequence, sequenceSettings, midnightSequenceActorPtr);
+	*/
 }
 
 void ABloodMoonSubsystem::SuspendWorldCompositionUpdates() {

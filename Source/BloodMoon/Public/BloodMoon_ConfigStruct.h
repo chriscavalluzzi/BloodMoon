@@ -10,32 +10,34 @@ struct FBloodMoon_ConfigStruct {
     GENERATED_BODY()
 public:
     UPROPERTY(BlueprintReadWrite)
-    bool enableMod;
+    bool enableMod{};
 
     UPROPERTY(BlueprintReadWrite)
-    int32 daysBetweenBloodMoon;
+    int32 daysBetweenBloodMoon{};
 
     UPROPERTY(BlueprintReadWrite)
-    bool enableCutscene;
+    bool enableCutscene{};
 
     UPROPERTY(BlueprintReadWrite)
-    bool enableParticleEffects;
+    bool enableParticleEffects{};
 
     UPROPERTY(BlueprintReadWrite)
-    bool enableRevive;
+    bool enableRevive{};
 
     UPROPERTY(BlueprintReadWrite)
-    bool skipReviveNearBases;
+    bool skipReviveNearBases{};
 
     UPROPERTY(BlueprintReadWrite)
-    float distanceConsideredClose;
+    float distanceConsideredClose{};
 
     /* Retrieves active configuration value and returns object of this struct containing it */
-    static FBloodMoon_ConfigStruct GetActiveConfig() {
+    static FBloodMoon_ConfigStruct GetActiveConfig(UObject* WorldContext) {
         FBloodMoon_ConfigStruct ConfigStruct{};
         FConfigId ConfigId{"BloodMoon", ""};
-        UConfigManager* ConfigManager = GEngine->GetEngineSubsystem<UConfigManager>();
-        ConfigManager->FillConfigurationStruct(ConfigId, FDynamicStructInfo{FBloodMoon_ConfigStruct::StaticStruct(), &ConfigStruct});
+        if (const UWorld* World = GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::ReturnNull)) {
+          UConfigManager* ConfigManager = World->GetGameInstance()->GetSubsystem<UConfigManager>();
+          ConfigManager->FillConfigurationStruct(ConfigId, FDynamicStructInfo{ FBloodMoon_ConfigStruct::StaticStruct(), &ConfigStruct });
+        }
         return ConfigStruct;
     }
 };
