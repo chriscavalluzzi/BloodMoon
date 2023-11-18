@@ -24,6 +24,9 @@ ABloodMoonSubsystem::ABloodMoonSubsystem() {
 	static ConstructorHelpers::FObjectFinder<ULevelSequence> midnightSequenceNoCutFinder(TEXT("LevelSequence'/BloodMoon/BloodMoonMidnightSequence_NoCut.BloodMoonMidnightSequence_NoCut'"));
 	midnightSequenceNoCut = midnightSequenceNoCutFinder.Object;
 
+	static ConstructorHelpers::FObjectFinder<UClass> temporaryWorldStreamingSourceFinder(TEXT("UClass'/BloodMoon/TemporaryWorldStreamingSource.TemporaryWorldStreamingSource_C'"));
+	temporaryWorldStreamingSourceClass = temporaryWorldStreamingSourceFinder.Object;
+
 	RegisterImmediateHooks();
 #endif
 }
@@ -52,7 +55,7 @@ void ABloodMoonSubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason) {
 }
 
 void ABloodMoonSubsystem::CheckIfReadyForSetup() {
-	if (GetTimeSubsystem()) {
+	if (GetTimeSubsystem() && !isSetup) {
 		Setup();
 	}
 }
@@ -195,6 +198,7 @@ void ABloodMoonSubsystem::StartCreatureSpawnerBaseTrace() {
 void ABloodMoonSubsystem::CreateGroundParticleComponent() {
 	if (GetCharacter() && !GetGroundParticleComponent()) {
 		UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Creating ParticleSceneComponent..."))
+		// TODO: See about connecting this to the camera instead of the character (for vehicles and other 3rd-person camera situations)
 		UActorComponent* newComponent = GetCharacter()->AddComponentByClass(UBloodMoonParticleSceneComponent::StaticClass(), false, FTransform(), false);
 		Cast<UBloodMoonParticleSceneComponent>(newComponent);
 	}
@@ -351,7 +355,6 @@ void ABloodMoonSubsystem::EndGroundParticleSystem() {
 //either freeze creatures or disable camera shake on damgage during sequence
 
 void ABloodMoonSubsystem::BuildMidnightSequence() {
-	/* BMTODO
 	FMovieSceneSequencePlaybackSettings sequenceSettings;
 	sequenceSettings.bAutoPlay = true;
 	sequenceSettings.bRestoreState = true;
@@ -371,18 +374,38 @@ void ABloodMoonSubsystem::BuildMidnightSequence() {
 
 	ALevelSequenceActor* midnightSequenceActorPtr = NewObject<ALevelSequenceActor>(this);
 	midnightSequencePlayer = ULevelSequencePlayer::CreateLevelSequencePlayer(this, sequence, sequenceSettings, midnightSequenceActorPtr);
-	*/
 }
 
 void ABloodMoonSubsystem::SuspendWorldCompositionUpdates() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Suspending world composition updates"))
-	vanillaTilesStreamingTimeThreshold = GetWorld()->WorldComposition->TilesStreamingTimeThreshold;
-	GetWorld()->WorldComposition->TilesStreamingTimeThreshold = DBL_MAX;
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Suspending world partition streaming"));
+
+	// Add temporary world partition streaming source at player's current location
+	FTransform characterTransform;
+	AFGCharacterBase* controlledCharacter = GetPlayerController()->GetControlledCharacter();
+	if (controlledCharacter) {
+		// Player is in a vehicle or something
+		characterTransform = controlledCharacter->GetTransform();
+	} else {
+		characterTransform = GetCharacter()->GetTransform();
+	}
+	temporaryWorldStreamingSource = GetWorld()->SpawnActor(temporaryWorldStreamingSourceClass, &characterTransform);
+
+	// Temporarily disable player world partition streaming
+	GetPlayerController()->bEnableStreamingSource = false;
 }
 
 void ABloodMoonSubsystem::ResumeWorldCompositionUpdates() {
-	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Resuming world composition updates"))
-	GetWorld()->WorldComposition->TilesStreamingTimeThreshold = vanillaTilesStreamingTimeThreshold;
+	UE_LOG(LogTemp, Display, TEXT("[BloodMoon] Resuming world partition streaming"));
+
+	// Re-enable player world partition streaming
+	GetPlayerController()->bEnableStreamingSource = true;
+
+	// Remove temporary world partition streaming source
+	if (IsValid(temporaryWorldStreamingSource)) {
+		temporaryWorldStreamingSource->Destroy();
+	} else {
+		UE_LOG(LogTemp, Error, TEXT("[BloodMoon] Temporary world streaming source was invalid!"));
+	}
 }
 
 AFGTimeOfDaySubsystem* ABloodMoonSubsystem::GetTimeSubsystem() {
@@ -433,14 +456,17 @@ bool ABloodMoonSubsystem::IsSafeToAccessWorld() {
 	return isSetup && !isDestroyed;
 }
 
+AFGPlayerController* ABloodMoonSubsystem::GetPlayerController() {
+	if (APlayerController* playerController = UGameplayStatics::GetPlayerController(this, 0)) {
+		return Cast<AFGPlayerController>(playerController);
+	}
+	return nullptr;
+}
+
 UFGGameUI* ABloodMoonSubsystem::GetGameUI() {
-	if (ACharacter* character = GetCharacter()) {
-		if (AController* controller = character->Controller) {
-			if (AFGPlayerController* playerController = Cast<AFGPlayerController>(controller)) {
-				if (AFGHUD* hud = playerController->GetHUD<AFGHUD>()) {
-					return hud->GetGameUI();
-				}
-			}
+	if (AFGPlayerController* playerController = GetPlayerController()) {
+		if (AFGHUD* hud = playerController->GetHUD<AFGHUD>()) {
+			return hud->GetGameUI();
 		}
 	}
 	return nullptr;

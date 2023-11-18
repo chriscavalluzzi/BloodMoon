@@ -52,6 +52,9 @@ private:
 	ULevelSequence* midnightSequenceNoCut;
 	ULevelSequencePlayer* midnightSequencePlayer;
 
+	UClass* temporaryWorldStreamingSourceClass;
+	AActor* temporaryWorldStreamingSource;
+
 	bool isBloodMoonNight = false;
 	bool isMidnightSequenceInProgress = false;
 	bool isBloodMoonDone = false;
@@ -64,6 +67,7 @@ private:
 	UWorld* SafeGetWorld();
 	bool IsHost();
 	bool IsSafeToAccessWorld();
+	AFGPlayerController* GetPlayerController();
 
 	// Setup
 
@@ -115,6 +119,7 @@ private:
 	void ChangeDistanceConsideredClose(float newDistanceConsideredClose);
 
 	// UI
+
 	UFGGameUI* GetGameUI();
 	void SetUIVisibility(bool newVisibility);
 
