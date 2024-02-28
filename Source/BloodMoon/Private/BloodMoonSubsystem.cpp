@@ -85,61 +85,90 @@ void ABloodMoonSubsystem::Setup() {
 void ABloodMoonSubsystem::RegisterImmediateHooks() {
 #if !WITH_EDITOR
 	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
-	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::BeginPlay, exampleSkySphere, [this](auto& scope, AFGSkySphere* self) {
-		UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Registering MoonLight..."))
-		moonLight = self->mMoonLight;
+	SUBSCRIBE_METHOD_VIRTUAL(AFGSkySphere::BeginPlay, exampleSkySphere, [](auto& scope, AFGSkySphere* self) {
+		if (ABloodMoonSubsystem* bms = ABloodMoonSubsystem::Get(self)) {
+			bms->SaveMoonLight(self->mMoonLight);
+		}
 	});
 #endif
 }
 
+void ABloodMoonSubsystem::CheckConfigReload(const FConfigId& ConfigId) {
+	if (IsSafeToAccessWorld() && ConfigId == FConfigId{ "BloodMoon", "" }) {
+		// The user config has been updated, reload it
+		UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Config marked dirty, reloading...."))
+		UpdateConfig();
+	}
+}
+
+void ABloodMoonSubsystem::SaveMoonLight(ADirectionalLight* newMoonLight) {
+	UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Registering MoonLight..."))
+	moonLight = newMoonLight;
+}
+
+void ABloodMoonSubsystem::SetupNewPlayer() {
+	if (IsSafeToAccessWorld() && GetWorld()) {
+		CreateGroundParticleComponent();
+		UpdateBloodMoonNightStatus();
+	}
+}
+
+bool ABloodMoonSubsystem::CheckMoonLightColorOverride(ULightComponent* lightComponent) {
+	return (isBloodMoonNight && IsSafeToAccessWorld() && lightComponent->GetOwner() == moonLight);
+}
+
 void ABloodMoonSubsystem::RegisterDelayedHooks() {
 #if !WITH_EDITOR
-	SUBSCRIBE_METHOD_AFTER(UConfigManager::MarkConfigurationDirty, [this](UConfigManager* self, const FConfigId& ConfigId) {
-		if (this->IsSafeToAccessWorld() && ConfigId == FConfigId{ "BloodMoon", "" }) {
-			// The user config has been updated, reload it
-			UE_LOG(LogTemp, Warning, TEXT("[BloodMoon] Config marked dirty, reloading...."))
-			this->UpdateConfig();
+	SUBSCRIBE_METHOD_AFTER(UConfigManager::MarkConfigurationDirty, [](UConfigManager* self, const FConfigId& ConfigId) {
+		if (ABloodMoonSubsystem* bms = ABloodMoonSubsystem::Get(self)) {
+			bms->CheckConfigReload(ConfigId);
 		}
 	});
 
 	AFGCharacterPlayer* examplePlayerCharacter = GetMutableDefault<AFGCharacterPlayer>();
-	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::SetupPlayerInputComponent, examplePlayerCharacter, [this](auto& scope, AFGCharacterPlayer* self, UInputComponent* PlayerInputComponent) {
-		if (this->IsSafeToAccessWorld() && GetWorld()) {
-			CreateGroundParticleComponent();
-			UpdateBloodMoonNightStatus();
+	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterPlayer::SetupPlayerInputComponent, examplePlayerCharacter, [](auto& scope, AFGCharacterPlayer* self, UInputComponent* PlayerInputComponent) {
+		if (ABloodMoonSubsystem* bms = ABloodMoonSubsystem::Get(self)) {
+			bms->SetupNewPlayer();
 		}
 	});
 
-	AFGSkySphere* exampleSkySphere = GetMutableDefault<AFGSkySphere>();
-	SUBSCRIBE_METHOD(ULightComponent::SetLightColor, [this](auto& scope, ULightComponent* self, FLinearColor color, bool bSRGB = true) {
-		if (isBloodMoonNight && this->IsSafeToAccessWorld() && self->GetOwner() == moonLight) {
-			scope(self, FLinearColor(1, 0, 0), bSRGB);
-			scope.Cancel();
+	SUBSCRIBE_METHOD(ULightComponent::SetLightColor, [](auto& scope, ULightComponent* self, FLinearColor color, bool bSRGB = true) {
+		if (ABloodMoonSubsystem* bms = ABloodMoonSubsystem::Get(self)) {
+			if (bms->CheckMoonLightColorOverride(self)) {
+				scope(self, FLinearColor(1, 0, 0), bSRGB);
+				scope.Cancel();
+			}
 		}
 	});
 
 	// Midnight sequence overrides
 
 	AFGCharacterBase* exampleCharacterBase = GetMutableDefault<AFGCharacterBase>();
-	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterBase::OnTakeRadialDamage, exampleCharacterBase, [this](auto& scope, AFGCharacterBase* self, AActor* damagedActor, float damage, const class UDamageType* damageType, FVector hitLocation, FHitResult hitInfo, class AController* instigatedBy, AActor* damageCauser) {
-		if (this->isMidnightSequenceInProgress) {
-			scope.Cancel();
+	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterBase::OnTakeRadialDamage, exampleCharacterBase, [](auto& scope, AFGCharacterBase* self, AActor* damagedActor, float damage, const class UDamageType* damageType, FVector hitLocation, FHitResult hitInfo, class AController* instigatedBy, AActor* damageCauser) {
+		if (ABloodMoonSubsystem* bms = ABloodMoonSubsystem::Get(self)) {
+			if (bms->isMidnightSequenceInProgress) {
+				scope.Cancel();
+			}
 		}
 	});
-	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterBase::OnTakePointDamage, exampleCharacterBase, [this](auto& scope, AFGCharacterBase* self, AActor* damagedActor, float damage, class AController* instigatedBy, FVector hitLocation, class UPrimitiveComponent* hitComponent, FName boneName, FVector shotFromDirection, const class UDamageType* damageType, AActor* damageCauser) {
-		if (this->isMidnightSequenceInProgress) {
-			scope.Cancel();
+	SUBSCRIBE_METHOD_VIRTUAL(AFGCharacterBase::OnTakePointDamage, exampleCharacterBase, [](auto& scope, AFGCharacterBase* self, AActor* damagedActor, float damage, class AController* instigatedBy, FVector hitLocation, class UPrimitiveComponent* hitComponent, FName boneName, FVector shotFromDirection, const class UDamageType* damageType, AActor* damageCauser) {
+		if (ABloodMoonSubsystem* bms = ABloodMoonSubsystem::Get(self)) {
+			if (bms->isMidnightSequenceInProgress) {
+				scope.Cancel();
+			}
 		}
 	});
 
 	APlayerCameraManager* examplePlayerCameraManager = GetMutableDefault<APlayerCameraManager>();
-	SUBSCRIBE_METHOD_VIRTUAL(APlayerCameraManager::StartCameraShake, examplePlayerCameraManager, [this](auto& scope, APlayerCameraManager* self, TSubclassOf<UCameraShakeBase> ShakeClass, float Scale = 1.f, ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal, FRotator UserPlaySpaceRot = FRotator::ZeroRotator) {
-		if (this->isMidnightSequenceInProgress) {
-			scope.Override(nullptr);
+	SUBSCRIBE_METHOD_VIRTUAL(APlayerCameraManager::StartCameraShake, examplePlayerCameraManager, [](auto& scope, APlayerCameraManager* self, TSubclassOf<UCameraShakeBase> ShakeClass, float Scale = 1.f, ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal, FRotator UserPlaySpaceRot = FRotator::ZeroRotator) {
+		if (ABloodMoonSubsystem* bms = ABloodMoonSubsystem::Get(self)) {
+			if (bms->isMidnightSequenceInProgress) {
+				scope.Override(nullptr);
+			}
 		}
 	});
 	/*
-	BMTODO SUBSCRIBE_METHOD_VIRTUAL(APlayerCameraManager::PlayCameraAnim, examplePlayerCameraManager, [this](auto& scope, APlayerCameraManager* self, class UCameraAnim* Anim, float Rate = 1.f, float Scale = 1.f, float BlendInTime = 0.f, float BlendOutTime = 0.f, bool bLoop = false, bool bRandomStartTime = false, float Duration = 0.f, ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal, FRotator UserPlaySpaceRot = FRotator::ZeroRotator) {
+	BMTODO SUBSCRIBE_METHOD_VIRTUAL(APlayerCameraManager::PlayCameraAnim, examplePlayerCameraManager, [](auto& scope, APlayerCameraManager* self, class UCameraAnim* Anim, float Rate = 1.f, float Scale = 1.f, float BlendInTime = 0.f, float BlendOutTime = 0.f, bool bLoop = false, bool bRandomStartTime = false, float Duration = 0.f, ECameraShakePlaySpace PlaySpace = ECameraShakePlaySpace::CameraLocal, FRotator UserPlaySpaceRot = FRotator::ZeroRotator) {
 		if (this->isMidnightSequenceInProgress) {
 			scope.Override(nullptr);
 		}
@@ -147,9 +176,11 @@ void ABloodMoonSubsystem::RegisterDelayedHooks() {
 	*/
 
 	UFGHealthComponent* exampleHealthComponent = GetMutableDefault<UFGHealthComponent>();
-	SUBSCRIBE_METHOD_VIRTUAL(UFGHealthComponent::TakeDamage, exampleHealthComponent, [this](auto& scope, UFGHealthComponent* self, AActor* damagedActor, float damageAmount, const class UDamageType* damageType, class AController* instigatedBy, AActor* damageCauser) {
-		if (this->isMidnightSequenceInProgress) {
-			scope.Cancel();
+	SUBSCRIBE_METHOD_VIRTUAL(UFGHealthComponent::TakeDamage, exampleHealthComponent, [](auto& scope, UFGHealthComponent* self, AActor* damagedActor, float damageAmount, const class UDamageType* damageType, class AController* instigatedBy, AActor* damageCauser) {
+		if (ABloodMoonSubsystem* bms = ABloodMoonSubsystem::Get(self)) {
+			if (bms->isMidnightSequenceInProgress) {
+				scope.Cancel();
+			}
 		}
 	});
 #endif
@@ -437,6 +468,10 @@ void ABloodMoonSubsystem::ChangeDistanceConsideredClose(float newDistanceConside
 		buildableSubsystem->mDistanceConsideredClose = newDistanceConsideredClose;
 		StartCreatureSpawnerBaseTrace();
 	}
+}
+
+ABloodMoonSubsystem* ABloodMoonSubsystem::Get(UObject* WorldContext) {
+	return Cast<ABloodMoonSubsystem>(UGameplayStatics::GetActorOfClass(WorldContext, StaticClass()));
 }
 
 UWorld* ABloodMoonSubsystem::SafeGetWorld() {

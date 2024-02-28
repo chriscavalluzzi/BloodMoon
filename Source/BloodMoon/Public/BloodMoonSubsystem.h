@@ -64,6 +64,7 @@ private:
 	bool isSetup = false;
 	bool isDestroyed = false;
 
+	static ABloodMoonSubsystem* Get(UObject* WorldContext);
 	UWorld* SafeGetWorld();
 	bool IsHost();
 	bool IsSafeToAccessWorld();
@@ -81,6 +82,13 @@ private:
 	void ApplyConfig();
 	void StartCreatureSpawnerBaseTrace();
 	void CreateGroundParticleComponent();
+
+	// Hooks
+
+	void SaveMoonLight(ADirectionalLight* newMoonLight);
+	void CheckConfigReload(const FConfigId& ConfigId);
+	void SetupNewPlayer();
+	bool CheckMoonLightColorOverride(ULightComponent* lightComponent);
 
 	// Status Changes
 
