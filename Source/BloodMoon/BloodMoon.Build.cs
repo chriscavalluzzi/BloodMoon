@@ -40,6 +40,8 @@ public class BloodMoon : ModuleRules
             "AnimGraphRuntime",
             "Json",
             "LevelSequence",
+            "MovieScene",
+            "SequencerScripting"
         });
 
         // FactoryGame plugins
