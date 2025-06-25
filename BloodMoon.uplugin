@@ -1,8 +1,8 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.0.3",
-	"SemVersion": "1.0.3",
+	"VersionName": "1.0.4",
+	"SemVersion": "1.0.4",
 	"FriendlyName": "Blood Moon",
 	"Description": "A mod that periodically turns the moon blood red and (optionally) revives creatures in the world.",
 	"Category": "Modding",
@@ -25,10 +25,10 @@
 	"Plugins": [
 		{
 			"Name": "SML",
-			"SemVersion": "^3.8.0",
+			"SemVersion": "^3.11.1",
 			"Enabled": true
 		}
 	],
-	"RemoteVersionRange": "^1.0.3",
-	"GameVersion": ">=377620"
+	"RemoteVersionRange": "^1.0.4",
+	"GameVersion": ">=416835"
 }
